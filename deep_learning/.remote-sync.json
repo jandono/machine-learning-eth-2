@@ -1,0 +1,16 @@
+{
+  "uploadOnSave": true,
+  "useAtomicWrites": false,
+  "deleteLocal": false,
+  "hostname": "atcremers52.informatik.tu-muenchen.de",
+  "port": "58022",
+  "ignore": [
+    ".remote-sync.json",
+    ".git/**"
+  ],
+  "username": "gallusse",
+  "watch": [],
+  "transport": "scp",
+  "target": "/usr/stud/gallusse/Desktop/2_mlproject",
+  "keyfile": "/Users/benjamin/.ssh/id_rsa"
+}

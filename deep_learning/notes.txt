@@ -1,0 +1,9 @@
+1. with learning rate 10^-5 and 100 epochs acceptable results, test loss ~120
+2. with learning rate 10^-6 and 200 epochs good results, until epoch 100 test error monotonically decreasing. Added one extra fully connected layer for more regularization, deleted two convLayers and one maxpooling. Global Pooling is still used. We have a bottleneck that may cause problems.
+ --> 200 epochs led to overfitting. 100 epochs seems to be a reasonable number with learning rate 10^-6
+
+ 3. Use cross validation, maybe 10 fold --> expensive
+ --> If we select a validation set out ot the training set, all 2D slices of entire models should be in there. No overlap between training set and test set.
+ 
+Normalize to a distribution with 0 mean and unit variance
+
