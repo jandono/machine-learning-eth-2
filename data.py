@@ -20,18 +20,19 @@ def load_and_preprocess(typ, n, params=None):
 
     img = load_datum(typ, n)
     if params['fwhm'] != 1:
-        img = smooth(img)
+        img = smooth(img, params['fwhm'])
+
     raw = np.squeeze(img.get_data()) # Remove extraneous 4th dimension
     cooked = cut_irrelevant_dimensions(raw, params['cut_x'], params['cut_y'], params['cut_z'])
 
-    if params['fwhm'] != 1:
-        cooked = reduce(cooked, 1 / float(params['fwhm']))
+    if params['zoom_factor'] != 1:
+        cooked = reduce(cooked, params['zoom_factor'])
 
     return cubeify(cooked, params['n_cubes'])
 
 
 def load_datum(typ, n):
-    path = '%s/set_%s/%s_%d.nii' % (DATA, typ, typ, n)
+    path = '%s/set_%s/%s_%d.nii' % (DATA, typ, typ, n + 1)
     return nilearn.image.load_img(path)
 
 def check_consistent_params(p):
@@ -43,24 +44,24 @@ def check_consistent_params(p):
     #   ((cut_end - cut_start) * zoom) / n_cubes ----> is a whole number
     #
 
-    def check_dim(a, b, fwhm, n_cubes):
-        make_dim(a, b, fwhm, n_cubes).is_integer()
+    def check_dim(a, b, zoom, n_cubes):
+        make_dim(a, b, zoom, n_cubes).is_integer()
 
-    if (not check_dim(p['cut_x'][0], p['cut_x'][1], p['fwhm'], p['n_cubes']) or
-        not check_dim(p['cut_y'][0], p['cut_y'][1], p['fwhm'], p['n_cubes']) or
-        not check_dim(p['cut_z'][0], p['cut_z'][1], p['fwhm'], p['n_cubes'])):
+    if (not check_dim(p['cut_x'][0], p['cut_x'][1], p['zoom_factor'], p['n_cubes']) or
+        not check_dim(p['cut_y'][0], p['cut_y'][1], p['zoom_factor'], p['n_cubes']) or
+        not check_dim(p['cut_z'][0], p['cut_z'][1], p['zoom_factor'], p['n_cubes'])):
         pass # raise Exception('Inconsistent parameters')
 
-def make_dim(a, b, fwhm, n_cubes):
-        return ((b - a) / float(fwhm) / float(n_cubes))
+def make_dim(a, b, zoom, n_cubes):
+        return ((b - a) * float(zoom) / float(n_cubes))
 
 '''
 Mostly for debugging. Indicates the shape one of these small cubes.
 '''
 def final_dimension(p):
-    return (make_dim(p['cut_x'][0], p['cut_x'][1], p['fwhm'], p['n_cubes']),
-            make_dim(p['cut_y'][0], p['cut_y'][1], p['fwhm'], p['n_cubes']),
-            make_dim(p['cut_z'][0], p['cut_z'][1], p['fwhm'], p['n_cubes']))
+    return (make_dim(p['cut_x'][0], p['cut_x'][1], p['zoom_factor'], p['n_cubes']),
+            make_dim(p['cut_y'][0], p['cut_y'][1], p['zoom_factor'], p['n_cubes']),
+            make_dim(p['cut_z'][0], p['cut_z'][1], p['zoom_factor'], p['n_cubes']))
 
 def construct_defaults():
     return {
@@ -72,8 +73,8 @@ def construct_defaults():
         # How much smoothing to apply
         'fwhm': 4,
 
-        # Zoom factor is defined as 1 / fwhm
-        #'zoom_factor': 0.25
+        # How much to zoom out. Typically 1 / fwhm
+        'zoom_factor': 0.25,
 
         # Split in how many cubes for each dimension
         'n_cubes': 3
@@ -124,10 +125,20 @@ def cubeify(data, n_cubes):
 
 # ============ Targets and predictions ============
 
-def get_targets():
-    np.genfromtxt(TARGETS, delimiter=',')
+def get_targets(rng=None):
+    return np.genfromtxt(TARGETS, delimiter=',')[rng]
 
 def print_prediction(preds):
     print('ID,Prediction')
     for i, p in enumerate(preds):
         print(str(i + 1) + ',' + str(p))
+
+'''
+Evaluate using the cross-entropy loss
+'''
+def evaluate(predicted, actual):
+    epsilon = 0.00001
+    class0 = (1 - actual) * np.log((1 + epsilon)- predicted)
+    class1 = actual * np.log(predicted + epsilon)
+    return -np.mean(class0 + class1)
+
