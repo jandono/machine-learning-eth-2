@@ -5,7 +5,7 @@ import time
 import pickle
 from sklearn.feature_selection import f_regression
 
-DATA = '../data'
+DATA = '../data_ml2'
 TRAINING_DATA = DATA + '/set_train/train_%d.nii'
 TEST_DATA = DATA + '/set_test/test_%d.nii'
 TARGETS = 'targets.csv'

@@ -39,22 +39,18 @@ LOAD_EPOCH = 50 # network parameters of all trainings epochs are saved. Specify 
 # Multi-level loss
 # All lines where you have to change code to configure different multi-level loss functions are marked with MULTI_LEVEL
 
-DATA_DIR = '/usr/gallusse/stud/Desktop/data/' # has to end with a /
+DATA_DIR = '/usr/gallusse/stud/Desktop/data_ml2/' # has to end with a /
 
 # Local root directory with code and logfiles
 ROOT_DIR = '/usr/stud/gallusse/Desktop/2_mlproject/'  # has to end with a /
-
-
-# Enable or disable Memmap
-MEMMAP = 1
 
 MB_SIZE = 1
 TEST_MB_SIZE = 1
 
 LEARNING_RATE = 0.000001
 
-MIN_AGE = 1.0
-MAX_AGE = 100.0
+# MIN_AGE = 1.0
+# MAX_AGE = 100.0
 
 # Create log files: for similarity output (debug), for main output(info),
 # for confusion matrices
@@ -219,7 +215,7 @@ def define_network(X):
 
     denselayer_nonlinearity = lasagne.nonlinearities.leaky_rectify
     # output_nonlinearity = lasagne.nonlinearities.softmax # for classification
-    output_nonlinearity = lasagne.nonlinearities.linear
+    output_nonlinearity = lasagne.nonlinearities.sigmoid
 
     #network = lasagne.layers.DenseLayer(
         #network, 4096, nonlinearity=denselayer_nonlinearity, W=W)
@@ -254,20 +250,20 @@ def define_network(X):
     #return {'output': output, 'inspect': inspect, 'params': params}
     return {'output': output, 'params': params}
 
-def normalize_targets(data):
-    """
-    data: ndarray
-    """
-    normalized = np.zeros(data.shape, dtype = np.float32)
-    for i in range(data.shape[0]):
-        normalized[i] = (data[i] - MIN_AGE) / (MAX_AGE - MIN_AGE)
-    return normalized
+# def normalize_targets(data):
+#     """
+#     data: ndarray
+#     """
+#     normalized = np.zeros(data.shape, dtype = np.float32)
+#     for i in range(data.shape[0]):
+#         normalized[i] = (data[i] - MIN_AGE) / (MAX_AGE - MIN_AGE)
+#     return normalized
 
-def denormalize_outputs(data):
-    denormalized = np.zeros(data.shape, dtype = np.float32)
-    for i in range(data.shape[0]):
-        denormalized[i] = data[i] * (MAX_AGE - MIN_AGE) + MIN_AGE
-    return denormalized
+# def denormalize_outputs(data):
+#     denormalized = np.zeros(data.shape, dtype = np.float32)
+#     for i in range(data.shape[0]):
+#         denormalized[i] = data[i] * (MAX_AGE - MIN_AGE) + MIN_AGE
+#     return denormalized
 
 def print_outputs(data, epoch=0):
     output_file = open(ROOT_DIR + 'logfiles/' + TIMESTAMP + '/test_outputs/outputs_epoch_' + str(epoch) + '.csv', 'w')
@@ -281,7 +277,7 @@ def train_model(learning_rate, data, num_epochs=100):
     """
     train_images = data['X']
     print("train_images {}".format(train_images.shape))
-    train_targets = normalize_targets(data['y'])
+    train_targets = data['y']
     print("train_targets {}".format(train_targets.shape))
     # print("Target dimension {}".format(train_targets.shape))
     test_images = data['Z']
@@ -320,7 +316,7 @@ def train_model(learning_rate, data, num_epochs=100):
 
     # Loss functions
     def loss_fn_train(Yhat, Y_X):
-        L = lasagne.objectives.squared_error(Yhat, Y_X) #loss function was categorical_crossentropy
+        L = lasagne.objectives.binary_crossentropy(Yhat, Y_X) #loss function was categorical_crossentropy
         # SUM = L.mean()
         SUM = L.sum()
         #print("SUM type {}".format(type(SUM)))
@@ -411,12 +407,12 @@ def train_model(learning_rate, data, num_epochs=100):
             LossTrain[-1] += LtrainMB
             #train_single_outputs[b * MB_SIZE : (b+1) * MB_SIZE, 0] = YhattrainMB
 
-            if MB_SIZE == 1:
-                Yhat_denormalized = np.rint(denormalize_outputs(np.array(YhattrainMB)))
-            else:
-                Yhat_denormalized = np.squeeze(np.rint(denormalize_outputs(np.array(YhattrainMB))))
+            # if MB_SIZE == 1:
+            #     Yhat_denormalized = np.rint(denormalize_outputs(np.array(YhattrainMB)))
+            # else:
+            #     Yhat_denormalized = np.squeeze(np.rint(denormalize_outputs(np.array(YhattrainMB))))
 
-            printMB(train_targets, Yhat_denormalized, indicesMB)
+            printMB(train_targets, YhattrainMB, indicesMB)
 
 
         total_training_time += time.time() - train_start
@@ -448,7 +444,8 @@ def train_model(learning_rate, data, num_epochs=100):
 
 
         # Save the outputs
-        printable_outputs = np.squeeze(np.rint(denormalize_outputs(np.array(outputs_test)))) # round to the nearest integer
+        # printable_outputs = np.squeeze(np.rint(denormalize_outputs(np.array(outputs_test)))) # round to the nearest integer
+        printable_outputs = np.squeeze(np.array(outputs_test)) # round to the nearest integer
         #print(type(printable_outputs))
         #print(printable_outputs.shape)
         print_outputs(printable_outputs, e)
@@ -526,7 +523,8 @@ def test_trained_model(data):
         outputs_test.append(avg)
 
     # Save the outputs
-    printable_outputs = np.squeeze(np.rint(denormalize_outputs(np.array(outputs_test)))) # round to the nearest integer
+    #printable_outputs = np.squeeze(np.rint(denormalize_outputs(np.array(outputs_test)))) # round to the nearest integer
+    printable_outputs = np.squeeze(np.array(outputs_test)) # round to the nearest integer
     print_outputs(printable_outputs, LOAD_EPOCH)
 
     DEBUG_FILE.close()
@@ -548,9 +546,9 @@ def system_config():
 def main(epochs=1, max_samples=sys.maxint, tag=''):
     system_config()
 
-    GPUFreeMemoryInBytes = sbcuda.cuda_ndarray.cuda_ndarray.mem_info()[0]
-    freeGPUMemInGBs = GPUFreeMemoryInBytes/1024./1024/1024
-    INFO_FILE.write('GPU free memory in GB: {}\n'.format(freeGPUMemInGBs))
+    # GPUFreeMemoryInBytes = sbcuda.cuda_ndarray.cuda_ndarray.mem_info()[0]
+    # freeGPUMemInGBs = GPUFreeMemoryInBytes/1024./1024/1024
+    # INFO_FILE.write('GPU free memory in GB: {}\n'.format(freeGPUMemInGBs))
 
     if tag:
         INFO_FILE.write(tag + '\n')

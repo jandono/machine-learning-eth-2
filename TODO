@@ -1,0 +1,5 @@
+CNN ideas:
+- loss function: binary crossentropy
+- one output neuron with sigmoidal/linear activation function
+- two output neuron with softmax activation function (and maybe categorical crossentropy)
+- save loaded numpy arrays with memmap
