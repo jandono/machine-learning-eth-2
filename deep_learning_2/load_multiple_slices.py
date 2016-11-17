@@ -14,6 +14,11 @@ SLICES_LIMIT = 15 # this influences the runtime
 TRAINING_SAMPLES = 278 #278 #ranging from 1 to 278
 TEST_SAMPLES = 138 #138 ranging from 1 to 138
 
+# Disregard black areas around the brain
+CUT_0 = (16,160)
+CUT_1 = (20,188)
+CUT_2 = (11,155)
+
 def training_file(n):
     return TRAINING_DATA % n
 def test_file(n):
@@ -31,7 +36,7 @@ def load_data(max_training_samples):
     # THREE DIFFERENT AXES
     # X_augmented = np.stack([X[n,model_axes[0] + m,:,:]
     # X_augmented = np.stack([X[n,:,model_axes[1] + m,:]
-    X_augmented = np.stack([X[n,:,:,model_axes[2] + m]
+    X_augmented = np.stack([X[n,CUT_0[0]:CUT_0[1],CUT_1[0]:CUT_1[1],model_axes[2] + m]
     	for n in range(X.shape[0]) # We don't use TRAINING_SAMPLES, because there can be less samples due to max_training_samples
     		for m in range(-SLICES_LIMIT,SLICES_LIMIT+1)] , axis = 0).astype(np.float32) # slice along the z-axis (up-down). We take only the SLICES_LIMIT * 2 central slices of the dimension
     # print(X_augmented.shape)
@@ -46,7 +51,7 @@ def load_data(max_training_samples):
     # THREE DIFFERENT AXES
     # Z_augmented = np.stack([Z[n,model_axes[0] + m,:,:]
     # Z_augmented = np.stack([Z[n,:,model_axes[1] + m,:]
-    Z_augmented = np.stack([Z[n,:,:,model_axes[2] + m]
+    Z_augmented = np.stack([Z[n,CUT_0[0]:CUT_0[1],CUT_1[0]:CUT_1[1],model_axes[2] + m]
     	for n in range(TEST_SAMPLES)
     		for m in range(-SLICES_LIMIT,SLICES_LIMIT+1)] , axis = 0).astype(np.float32) # slice along the z-axis (up-down). We take only the SLICES_LIMIT * 2 central slices of the dimension
     # print(Z_augmented.shape)

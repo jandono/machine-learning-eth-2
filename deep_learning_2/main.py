@@ -173,10 +173,11 @@ def define_network(X):
     # if padding in MaxPool2DLayer is used, ignore_border has to be set to True
 
     # VGG 11 layers
-    # 176 x 208 x 176
+    # raw: 176 x 208 x 176
+    # Cooked: 144 x 168 x 144
     # input image size has to be explicitly specified
     network = lasagne.layers.InputLayer(
-        shape=(None, 1, 176, 208), input_var=X)
+        shape=(None, 1, 144, 168), input_var=X)
     network = lasagne.layers.Conv2DLayer(network, num_filters=64, filter_size=3, pad=pad,
                                          nonlinearity=nonlinearity, W=W)
     network = lasagne.layers.MaxPool2DLayer(network, pool_size=2, pad=pool_pad)
@@ -201,11 +202,11 @@ def define_network(X):
                                          nonlinearity=nonlinearity, W=W)
     network = lasagne.layers.Conv2DLayer(network, num_filters=512, filter_size=3, pad=pad,
                                          nonlinearity=nonlinearity, W=W)
-    network = lasagne.layers.MaxPool2DLayer(network, pool_size=2, pad=pool_pad)
+    #network = lasagne.layers.MaxPool2DLayer(network, pool_size=2, pad=pool_pad)
 
     # Global Pooling for each channel
     #If we don't have variable input size, we don't need that. But a fully connected network on too many neurons isn't a good idea
-    # network = lasagne.layers.GlobalPoolLayer(network, pool_function=T.max)
+    network = lasagne.layers.GlobalPoolLayer(network, pool_function=T.max)
 
 
     # DEBUG: Don't use inspect
