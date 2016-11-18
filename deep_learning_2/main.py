@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 
 import os
-os.environ["THEANO_FLAGS"] = "device=gpu,lib.cnmem=0.9"#,compute_test_value = raise"#,allow_gc=False"
+os.environ["THEANO_FLAGS"] = "device=gpu,lib.cnmem=0.85"#,compute_test_value = raise"#,allow_gc=False"
 import numpy as np
 import random
 import time
@@ -215,8 +215,7 @@ def define_network(X):
 
 
     denselayer_nonlinearity = lasagne.nonlinearities.leaky_rectify
-    # output_nonlinearity = lasagne.nonlinearities.softmax # for classification
-    output_nonlinearity = lasagne.nonlinearities.sigmoid
+    output_nonlinearity = lasagne.nonlinearities.softmax # for classification
 
     #network = lasagne.layers.DenseLayer(
         #network, 4096, nonlinearity=denselayer_nonlinearity, W=W)
@@ -228,8 +227,8 @@ def define_network(X):
         network, 1024, nonlinearity=denselayer_nonlinearity, W=W)
     network = lasagne.layers.dropout(network, p=0.5)
 
-    # Output layer. One neuron for regression
-    output = lasagne.layers.DenseLayer(network, 1, nonlinearity=output_nonlinearity)
+    # Output layer. Two neurons for binary classification with softmax nonlinearity
+    output = lasagne.layers.DenseLayer(network, 2, nonlinearity=output_nonlinearity)
 
     # Debug
     #print("output shape {}".format(lasagne.layers.get_output_shape(output)))
@@ -270,7 +269,10 @@ def print_outputs(data, epoch=0):
     output_file = open(LOGFILES + TIMESTAMP + '/test_outputs/outputs_epoch_' + str(epoch) + '.csv', 'w')
     output_file.write("ID,Prediction\n")
     for i in range(data.shape[0]):
-        output_file.write("{},{} \n".format(i+1,int(data[i])))
+        #print(data[i])
+        #print(type(data[i]))
+        # Take only the first value of the two output neurons
+        output_file.write("{},{} \n".format(i+1, data[i][0]))
 
 def train_model(learning_rate, data, num_epochs=100):
     """
@@ -424,7 +426,7 @@ def train_model(learning_rate, data, num_epochs=100):
 
         outputs_test = []
 
-        DEBUG_FILE.write('Test set\n')
+        # DEBUG_FILE.write('Test set\n')
         for b in range(0, len(indices_test), slices_limit):
             indicesMB = indices_test[b: b + slices_limit]
 
@@ -437,16 +439,16 @@ def train_model(learning_rate, data, num_epochs=100):
             YhattestMB = runMB([test_images], indicesMB, eval_fn=(lambda XYlist: test_fn(XYlist[0])))
             #YhattestMB, LtestMB, inspectMB = runMB([test_images], indicesMB, eval_fn=(lambda XYlist: test_fn(XYlist[0])))
             #LossTest[-1] += LtestMB
-            #print(type(YhattestMB))
+            #print(YhattestMB)
 
-            avg = np.average(YhattestMB)
-
+            # np.squeeze eliminates the channel dimension of the output with dimension (1, slices_limit, 2)
+            avg = np.average(np.squeeze(YhattestMB), axis=0)
             outputs_test.append(avg)
 
 
         # Save the outputs
         # printable_outputs = np.squeeze(np.rint(denormalize_outputs(np.array(outputs_test)))) # round to the nearest integer
-        printable_outputs = np.squeeze(np.array(outputs_test)) # round to the nearest integer
+        printable_outputs = np.squeeze(np.array(outputs_test))
         #print(type(printable_outputs))
         #print(printable_outputs.shape)
         print_outputs(printable_outputs, e)
@@ -519,7 +521,8 @@ def test_trained_model(data):
         YhattestMB = runMB([test_images], indicesMB, eval_fn=(lambda XYlist: test_fn(XYlist[0])))
         #YhattestMB, LtestMB, inspectMB = runMB([test_images], indicesMB, eval_fn=(lambda XYlist: test_fn(XYlist[0])))
 
-        avg = np.average(YhattestMB)
+        # np.squeeze eliminates the channel dimension of the output with dimension (1, slices_limit, 2)
+        avg = np.average(np.squeeze(YhattestMB), axis=0)
 
         outputs_test.append(avg)
 

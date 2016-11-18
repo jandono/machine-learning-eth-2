@@ -58,8 +58,17 @@ def load_data(max_training_samples):
 
 
     # targets for training data
-    y = np.genfromtxt(DATA + '/targets.csv', delimiter=',')[:TRAINING_SAMPLES][:max_training_samples]
-    y_augmented = np.array([y_n for y_n in y for m in range(-SLICES_LIMIT,SLICES_LIMIT+1)], dtype = np.float32) # has to be float32 for Theano
+    y = np.genfromtxt(DATA + '/targets.csv', delimiter='\n')[:TRAINING_SAMPLES][:max_training_samples]
+    
+    # modify targets for classification
+    y_one_hot_encoded = np.zeros((len(y),2), dtype = np.float32)
+    for i, y_i in enumerate(y):
+        if y_i == 1:
+            y_one_hot_encoded[i,:] = [1.0, 0.0]
+        elif y_i == 0:
+            y_one_hot_encoded[i,:] = [0.0, 1.0]
+   
+    y_augmented = np.array([y_n for y_n in y_one_hot_encoded for m in range(-SLICES_LIMIT,SLICES_LIMIT+1)], dtype = np.float32) # has to be float32 for Theano
     #print(y_augmented)
     print("data was loaded")
     return {'X': X_augmented, 'y': y_augmented, 'Z': Z_augmented, 'SLICES_LIMIT': SLICES_LIMIT}
