@@ -48,6 +48,8 @@ MB_SIZE = 1
 TEST_MB_SIZE = 1
 
 LEARNING_RATE = 0.000001
+# Absolute smallest float32, for avoiding underflows to zero
+TINY = np.finfo(np.float32).tiny
 
 # MIN_AGE = 1.0
 # MAX_AGE = 100.0
@@ -319,6 +321,7 @@ def train_model(learning_rate, data, num_epochs=100):
 
     # Loss functions
     def loss_fn_train(Yhat, Y_X):
+        Yhat = Yhat + TINY # add a small float value to each prediction in order to avoid log(0)
         L = lasagne.objectives.binary_crossentropy(Yhat, Y_X) #loss function was categorical_crossentropy
         # SUM = L.mean()
         SUM = L.sum()

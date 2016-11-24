@@ -26,6 +26,26 @@ def test_file(n):
 
 #backdrop = nilearn.image.load_img(training_file(1)) # For visualisation purposes only
 
+def standardize_data(X,Z):
+    complete_data = np.concatenate((X, Z), axis=0) #this doesn't copy the array
+    means = np.mean(complete_data, axis=0)
+    stds = np.std(complete_data, axis=0)
+    # 
+    def standardize_feature(feature, mean, std):
+        if std == 0: #all pixels at location i,j have the same value
+            return feature - mean
+        else:
+            return (feature - mean)/std
+    def standardize_array(A):
+        for i in range(means.shape[0]):
+            for j in range(means.shape[1]):
+                A[:,i,j] = standardize_feature(A[:,i,j], means[i,j], stds[i,j])
+        return A
+
+    X = standardize_array(X)
+    Z = standardize_array(Z)
+    return (X,Z)
+
 def load_data(max_training_samples):
     # training data
     X = np.squeeze(np.stack([nilearn.image.load_img(training_file(n)).get_data()
@@ -39,7 +59,7 @@ def load_data(max_training_samples):
     X_augmented = np.stack([X[n,CUT_0[0]:CUT_0[1],CUT_1[0]:CUT_1[1],model_axes[2] + m]
     	for n in range(X.shape[0]) # We don't use TRAINING_SAMPLES, because there can be less samples due to max_training_samples
     		for m in range(-SLICES_LIMIT,SLICES_LIMIT+1)] , axis = 0).astype(np.float32) # slice along the z-axis (up-down). We take only the SLICES_LIMIT * 2 central slices of the dimension
-    # print(X_augmented.shape)
+    #print("max {} min {}".format(np.max(X_augmented[0]), np.min(X_augmented[0])))
 
     # test data
     Z = np.squeeze(np.stack([nilearn.image.load_img(test_file(n)).get_data()
@@ -55,6 +75,8 @@ def load_data(max_training_samples):
     	for n in range(TEST_SAMPLES)
     		for m in range(-SLICES_LIMIT,SLICES_LIMIT+1)] , axis = 0).astype(np.float32) # slice along the z-axis (up-down). We take only the SLICES_LIMIT * 2 central slices of the dimension
     # print(Z_augmented.shape)
+
+    X_augmented, Z_augmented = standardize_data(X_augmented, Z_augmented)
 
 
     # targets for training data
