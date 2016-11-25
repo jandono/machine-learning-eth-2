@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 
 import os
-os.environ["THEANO_FLAGS"] = "device=gpu,lib.cnmem=0.85"#,compute_test_value = raise"#,allow_gc=False"
+os.environ["THEANO_FLAGS"] = "device=gpu,lib.cnmem=0.80"#,compute_test_value = raise"#,allow_gc=False"
 import numpy as np
 import random
 import time
@@ -47,9 +47,11 @@ ROOT_DIR = '/home/gallussb/Documents/2_mlproject/'  # has to end with a /
 MB_SIZE = 1
 TEST_MB_SIZE = 1
 
-LEARNING_RATE = 0.000001
-# Absolute smallest float32, for avoiding underflows to zero
+LEARNING_RATE = 0.0000001
+# Absolute smallest float32, for avoiding underflows to zero and overflows to 1
 TINY = np.finfo(np.float32).tiny
+# Weighted average with 0.5
+NUMERICAL_HACK = TINY * 4.0
 
 # MIN_AGE = 1.0
 # MAX_AGE = 100.0
@@ -158,10 +160,11 @@ def runMB(XYlist, indices, eval_fn, vis_fn=None):
     return results
 
 
-def printMB(train_targets, YhatMB, idcMB):
+def printMB(train_targets, YhatMB, idcMB, inspectMB=""):
     for i in range(YhatMB.shape[0]):
         index = idcMB[i]
         DEBUG_FILE.write("{0}:\t -> {1}\n".format(train_targets[index], YhatMB[i]))
+        DEBUG_FILE.write("{}\n".format(inspectMB))
     DEBUG_FILE.flush()
 
 def define_network(X):
@@ -211,13 +214,14 @@ def define_network(X):
     network = lasagne.layers.GlobalPoolLayer(network, pool_function=T.max)
 
 
-    # DEBUG: Don't use inspect
+    # DEBUG: 
     # "Inspect" layer
     #inspect = lasagne.layers.get_output(network)
 
 
     denselayer_nonlinearity = lasagne.nonlinearities.leaky_rectify
-    output_nonlinearity = lasagne.nonlinearities.softmax # for classification
+    #output_nonlinearity = lasagne.nonlinearities.softmax # for classification
+    output_nonlinearity = lasagne.nonlinearities.softmax
 
     #network = lasagne.layers.DenseLayer(
         #network, 4096, nonlinearity=denselayer_nonlinearity, W=W)
@@ -227,7 +231,12 @@ def define_network(X):
     network = lasagne.layers.dropout(network, p=0.5)
     network = lasagne.layers.DenseLayer(
         network, 1024, nonlinearity=denselayer_nonlinearity, W=W)
+
+    #DEBUG
+    inspect = lasagne.layers.get_output(network)
+
     network = lasagne.layers.dropout(network, p=0.5)
+
 
     # Output layer. Two neurons for binary classification with softmax nonlinearity
     output = lasagne.layers.DenseLayer(network, 2, nonlinearity=output_nonlinearity)
@@ -249,8 +258,8 @@ def define_network(X):
     INFO_FILE.write(print_module.lasagne2str(output) + '\n')
 
     print('Defined Network')
-    #return {'output': output, 'inspect': inspect, 'params': params}
-    return {'output': output, 'params': params}
+    return {'output': output, 'inspect': inspect, 'params': params}
+    # return {'output': output, 'params': params}
 
 # def normalize_targets(data):
 #     """
@@ -273,7 +282,8 @@ def print_outputs(data, epoch=0):
     for i in range(data.shape[0]):
         #print(data[i])
         #print(type(data[i]))
-        # Take only the first value of the two output neurons
+        #output_file.write("{},{} \n".format(i+1, data[i]))
+        # Classification: Take only the first value of the two output neurons
         output_file.write("{},{} \n".format(i+1, data[i][0]))
 
 def train_model(learning_rate, data, num_epochs=100):
@@ -298,8 +308,8 @@ def train_model(learning_rate, data, num_epochs=100):
     X = T.ftensor4('inputs')
 
     network_interface = define_network(X)
-    #output, inspect, params = network_interface['output'], network_interface['inspect'], network_interface['params']
-    output, params = network_interface['output'], network_interface['params']
+    output, inspect, params = network_interface['output'], network_interface['inspect'], network_interface['params']
+    #output, params = network_interface['output'], network_interface['params']
 
     # Save network when there is an exception
     atexit.register(save_network, output) #, filename_prolongation='aborted')
@@ -321,16 +331,15 @@ def train_model(learning_rate, data, num_epochs=100):
 
     # Loss functions
     def loss_fn_train(Yhat, Y_X):
-        Yhat = Yhat + TINY # add a small float value to each prediction in order to avoid log(0)
-        L = lasagne.objectives.binary_crossentropy(Yhat, Y_X) #loss function was categorical_crossentropy
-        # SUM = L.mean()
+        # Nudge the loss toward the center to avoid 0.0 and 1.0
+        Yhat = (Yhat * (1-NUMERICAL_HACK)) + (0.5 * NUMERICAL_HACK)
+        # Correct underflow to 0: Yhat = Yhat + TINY # add a small float value to each prediction in order to avoid log(0)
+        L = lasagne.objectives.categorical_crossentropy(Yhat, Y_X) #loss function was categorical_crossentropy
+        # SUM only sums up per output neuron
         SUM = L.sum()
         #print("SUM type {}".format(type(SUM)))
         return SUM
-    # def loss_fn_test(Yhat, Y_X):
-    #     L = lasagne.objectives.squared_error(Yhat, Y_X)
-    #     SUM = L.sum()
-    #     return SUM
+    
 
 
     Ltrain = loss_fn_train(Yhat_train, Y)
@@ -348,12 +357,12 @@ def train_model(learning_rate, data, num_epochs=100):
     print('Defined updates')
 
     # train_fn = theano.function([X, Y], [Yhat_train, Ltrain, Ltrain_singles, inspect], updates=updates)
-    train_fn = theano.function([X, Y], [Yhat_train, Ltrain], updates=updates)
+    train_fn = theano.function([X, Y], [Yhat_train, Ltrain, inspect], updates=updates)
                                                     #mode=theano.compile.MonitorMode(post_func=detect_nan))
                                                     #mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True)) #, on_unused_input='warn'), mode='DebugMode')
 
-    # test_fn = theano.function([X], [Yhat_test, inspect]) #, on_unused_input='warn')
-    test_fn = theano.function([X], [Yhat_test]) #, on_unused_input='warn')
+    test_fn = theano.function([X], [Yhat_test, inspect]) #, on_unused_input='warn')
+    # test_fn = theano.function([X], [Yhat_test]) #, on_unused_input='warn')
 
     print('Defined train and test function')
 
@@ -407,7 +416,7 @@ def train_model(learning_rate, data, num_epochs=100):
             #print('train function')
             # YhattrainMB, LtrainMB, Ltrain_singlesMB, inspectMB = runMB(
             #     [train_images, train_targets], indicesMB, eval_fn=(lambda XYlist: train_fn(XYlist[0], XYlist[1])))
-            YhattrainMB, LtrainMB = runMB(
+            YhattrainMB, LtrainMB, inspectMB = runMB(
                 [train_images, train_targets], indicesMB, eval_fn=(lambda XYlist: train_fn(XYlist[0], XYlist[1])))
             #print('append loss')
             LossTrain[-1] += LtrainMB
@@ -417,8 +426,10 @@ def train_model(learning_rate, data, num_epochs=100):
             #     Yhat_denormalized = np.rint(denormalize_outputs(np.array(YhattrainMB)))
             # else:
             #     Yhat_denormalized = np.squeeze(np.rint(denormalize_outputs(np.array(YhattrainMB))))
-
-            printMB(train_targets, YhattrainMB, indicesMB)
+            if e == 20:
+                printMB(train_targets, YhattrainMB, indicesMB, inspectMB)
+            else:
+                printMB(train_targets, YhattrainMB, indicesMB)
 
 
         total_training_time += time.time() - train_start
@@ -439,7 +450,7 @@ def train_model(learning_rate, data, num_epochs=100):
             #     DEBUG_FILE.write('{}\n'.format(d))
 
             # YhattestMB, inspectMB = runMB([test_images], indicesMB, eval_fn=(lambda XYlist: test_fn(XYlist[0])))
-            YhattestMB = runMB([test_images], indicesMB, eval_fn=(lambda XYlist: test_fn(XYlist[0])))
+            YhattestMB, inspectMB = runMB([test_images], indicesMB, eval_fn=(lambda XYlist: test_fn(XYlist[0])))
             #YhattestMB, LtestMB, inspectMB = runMB([test_images], indicesMB, eval_fn=(lambda XYlist: test_fn(XYlist[0])))
             #LossTest[-1] += LtestMB
             #print(YhattestMB)
@@ -493,8 +504,8 @@ def test_trained_model(data):
     X = T.ftensor4('inputs')
 
     network_interface = define_network(X)
-    #output, inspect, params = network_interface['output'], network_interface['inspect'], network_interface['params']
-    output, params = network_interface['output'], network_interface['params']
+    output, inspect, params = network_interface['output'], network_interface['inspect'], network_interface['params']
+    # output, params = network_interface['output'], network_interface['params']
 
     # Neural network output
 
@@ -521,7 +532,7 @@ def test_trained_model(data):
         #     DEBUG_FILE.write('{}\n'.format(d))
 
         # YhattestMB, inspectMB = runMB([test_images], indicesMB, eval_fn=(lambda XYlist: test_fn(XYlist[0])))
-        YhattestMB = runMB([test_images], indicesMB, eval_fn=(lambda XYlist: test_fn(XYlist[0])))
+        YhattestMB, inspectMB = runMB([test_images], indicesMB, eval_fn=(lambda XYlist: test_fn(XYlist[0])))
         #YhattestMB, LtestMB, inspectMB = runMB([test_images], indicesMB, eval_fn=(lambda XYlist: test_fn(XYlist[0])))
 
         # np.squeeze eliminates the channel dimension of the output with dimension (1, slices_limit, 2)

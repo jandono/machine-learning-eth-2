@@ -5,9 +5,11 @@ import time
 import pickle
 from sklearn.feature_selection import f_regression
 
-DATA = '/data/gallussb/2_mlproject/'
-TRAINING_DATA = DATA + 'set_train/train_%d.nii'
-TEST_DATA = DATA + 'set_test/test_%d.nii'
+DATA = '/data/gallussb/2_mlproject/DATA/'
+# TRAINING_DATA = DATA + 'set_train/train_%d.nii'
+# TEST_DATA = DATA + 'set_test/test_%d.nii'
+TRAINING_DATA = DATA + 'train_segmented/mri/mwp1train_%d.nii'
+TEST_DATA = DATA + 'test_segmented/mri/mwp1test_%d.nii'
 TARGETS = DATA + 'targets.csv'
 
 SLICES_LIMIT = 15 # this influences the runtime
@@ -46,6 +48,16 @@ def standardize_data(X,Z):
     Z = standardize_array(Z)
     return (X,Z)
 
+def one_hot_encode_targets(y):
+    # modify targets for classification
+    y_one_hot_encoded = np.zeros((len(y),2), dtype = np.float32)
+    for i, y_i in enumerate(y):
+        if y_i == 1:
+            y_one_hot_encoded[i,:] = [1.0, 0.0]
+        elif y_i == 0:
+            y_one_hot_encoded[i,:] = [0.0, 1.0]
+    return y_one_hot_encoded
+
 def load_data(max_training_samples):
     # training data
     X = np.squeeze(np.stack([nilearn.image.load_img(training_file(n)).get_data()
@@ -82,15 +94,23 @@ def load_data(max_training_samples):
     # targets for training data
     y = np.genfromtxt(DATA + '/targets.csv', delimiter='\n')[:TRAINING_SAMPLES][:max_training_samples]
     
-    # modify targets for classification
-    y_one_hot_encoded = np.zeros((len(y),2), dtype = np.float32)
-    for i, y_i in enumerate(y):
-        if y_i == 1:
-            y_one_hot_encoded[i,:] = [1.0, 0.0]
-        elif y_i == 0:
-            y_one_hot_encoded[i,:] = [0.0, 1.0]
-   
-    y_augmented = np.array([y_n for y_n in y_one_hot_encoded for m in range(-SLICES_LIMIT,SLICES_LIMIT+1)], dtype = np.float32) # has to be float32 for Theano
-    #print(y_augmented)
+    y = one_hot_encode_targets(y)
+
+    y_augmented = np.array([y_n for y_n in y for m in range(-SLICES_LIMIT,SLICES_LIMIT+1)], dtype = np.float32) # has to be float32 for Theano
+
+    # triple the data with [0,1] target
+    X_oversampling = []
+    y_oversampling = []
+    for i,y_a in enumerate(y_augmented):
+        if (y_a == np.array([0.0, 1.0])).all():
+            X_oversampling.append(X_augmented[i])
+            X_oversampling.append(X_augmented[i])
+            y_oversampling.append(y_a)
+            y_oversampling.append(y_a)
+
+    X_augmented = np.concatenate((X_augmented, np.array(X_oversampling)))
+    y_augmented = np.concatenate((y_augmented, np.array(y_oversampling)))
+
+    print(y_augmented)
     print("data was loaded")
     return {'X': X_augmented, 'y': y_augmented, 'Z': Z_augmented, 'SLICES_LIMIT': SLICES_LIMIT}
