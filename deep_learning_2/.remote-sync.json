@@ -1,0 +1,15 @@
+{
+  "uploadOnSave": true,
+  "useAtomicWrites": false,
+  "deleteLocal": false,
+  "hostname": "129.132.45.34",
+  "ignore": [
+    ".remote-sync.json",
+    ".git/**"
+  ],
+  "username": "gallussb",
+  "watch": [],
+  "transport": "scp",
+  "target": "/home/gallussb/Documents/2_mlproject",
+  "keyfile": "/Users/benjamin/.ssh/id_rsa"
+}
