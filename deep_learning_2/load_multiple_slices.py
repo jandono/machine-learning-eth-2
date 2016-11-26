@@ -1,9 +1,7 @@
 import numpy as np
 import nilearn.image
-import nilearn.plotting
+#import nilearn.plotting
 import time
-import pickle
-from sklearn.feature_selection import f_regression
 
 DATA = '/data/gallussb/2_mlproject/DATA/'
 # TRAINING_DATA = DATA + 'set_train/train_%d.nii'
@@ -32,7 +30,7 @@ def standardize_data(X,Z):
     complete_data = np.concatenate((X, Z), axis=0) #this doesn't copy the array
     means = np.mean(complete_data, axis=0)
     stds = np.std(complete_data, axis=0)
-    # 
+    #
     def standardize_feature(feature, mean, std):
         if std == 0: #all pixels at location i,j have the same value
             return feature - mean
@@ -93,24 +91,25 @@ def load_data(max_training_samples):
 
     # targets for training data
     y = np.genfromtxt(DATA + '/targets.csv', delimiter='\n')[:TRAINING_SAMPLES][:max_training_samples]
-    
-    y = one_hot_encode_targets(y)
+
+    # y = one_hot_encode_targets(y)
 
     y_augmented = np.array([y_n for y_n in y for m in range(-SLICES_LIMIT,SLICES_LIMIT+1)], dtype = np.float32) # has to be float32 for Theano
 
-    # triple the data with [0,1] target
-    X_oversampling = []
-    y_oversampling = []
-    for i,y_a in enumerate(y_augmented):
-        if (y_a == np.array([0.0, 1.0])).all():
-            X_oversampling.append(X_augmented[i])
-            X_oversampling.append(X_augmented[i])
-            y_oversampling.append(y_a)
-            y_oversampling.append(y_a)
+    # # triple the data with [0,1] target
+    # X_oversampling = []
+    # y_oversampling = []
+    # for i,y_a in enumerate(y_augmented):
+    #     if (y_a == np.array([0.0, 1.0])).all():
+    #         X_oversampling.append(X_augmented[i])
+    #         X_oversampling.append(X_augmented[i])
+    #         y_oversampling.append(y_a)
+    #         y_oversampling.append(y_a)
+    #
+    # if(X_oversampling): # only concatenate if there is oversampled samples
+    #     X_augmented = np.concatenate((X_augmented, np.array(X_oversampling)))
+    #     y_augmented = np.concatenate((y_augmented, np.array(y_oversampling)))
 
-    X_augmented = np.concatenate((X_augmented, np.array(X_oversampling)))
-    y_augmented = np.concatenate((y_augmented, np.array(y_oversampling)))
-
-    print(y_augmented)
+    #print(y_augmented)
     print("data was loaded")
     return {'X': X_augmented, 'y': y_augmented, 'Z': Z_augmented, 'SLICES_LIMIT': SLICES_LIMIT}
