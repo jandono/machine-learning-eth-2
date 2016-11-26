@@ -47,7 +47,7 @@ ROOT_DIR = '/home/gallussb/Documents/2_mlproject/'  # has to end with a /
 MB_SIZE = 1
 TEST_MB_SIZE = 1
 
-LEARNING_RATE = 0.0000001
+LEARNING_RATE = 0.000001
 # Absolute smallest float32, for avoiding underflows to zero and overflows to 1
 TINY = np.finfo(np.float32).tiny
 # Weighted average with 0.5
@@ -214,14 +214,14 @@ def define_network(X):
     network = lasagne.layers.GlobalPoolLayer(network, pool_function=T.max)
 
 
-    # DEBUG: 
+    # DEBUG:
     # "Inspect" layer
     #inspect = lasagne.layers.get_output(network)
 
 
     denselayer_nonlinearity = lasagne.nonlinearities.leaky_rectify
     #output_nonlinearity = lasagne.nonlinearities.softmax # for classification
-    output_nonlinearity = lasagne.nonlinearities.softmax
+    output_nonlinearity = lasagne.nonlinearities.sigmoid
 
     #network = lasagne.layers.DenseLayer(
         #network, 4096, nonlinearity=denselayer_nonlinearity, W=W)
@@ -238,8 +238,9 @@ def define_network(X):
     network = lasagne.layers.dropout(network, p=0.5)
 
 
-    # Output layer. Two neurons for binary classification with softmax nonlinearity
-    output = lasagne.layers.DenseLayer(network, 2, nonlinearity=output_nonlinearity)
+    # Output layer. Two neurons for binary classification with softmax nonlinearity,
+    # one neuron with sigmoid nonlinearity and
+    output = lasagne.layers.DenseLayer(network, 1, nonlinearity=output_nonlinearity)
 
     # Debug
     #print("output shape {}".format(lasagne.layers.get_output_shape(output)))
@@ -282,9 +283,9 @@ def print_outputs(data, epoch=0):
     for i in range(data.shape[0]):
         #print(data[i])
         #print(type(data[i]))
-        #output_file.write("{},{} \n".format(i+1, data[i]))
-        # Classification: Take only the first value of the two output neurons
-        output_file.write("{},{} \n".format(i+1, data[i][0]))
+        output_file.write("{},{} \n".format(i+1, data[i]))
+        # Binary classification : Take only the first value of the two output neurons
+        #output_file.write("{},{} \n".format(i+1, data[i][0]))
 
 def train_model(learning_rate, data, num_epochs=100):
     """
@@ -332,14 +333,14 @@ def train_model(learning_rate, data, num_epochs=100):
     # Loss functions
     def loss_fn_train(Yhat, Y_X):
         # Nudge the loss toward the center to avoid 0.0 and 1.0
-        Yhat = (Yhat * (1-NUMERICAL_HACK)) + (0.5 * NUMERICAL_HACK)
+        Yhat = (Yhat * (1.0-NUMERICAL_HACK)) + (0.5 * NUMERICAL_HACK)
         # Correct underflow to 0: Yhat = Yhat + TINY # add a small float value to each prediction in order to avoid log(0)
-        L = lasagne.objectives.categorical_crossentropy(Yhat, Y_X) #loss function was categorical_crossentropy
-        # SUM only sums up per output neuron
+        L = lasagne.objectives.squared_error(Yhat, Y_X) #loss function was categorical_crossentropy
+        # L is a vector of size MB_SIZE, because the losses are always scalar
         SUM = L.sum()
         #print("SUM type {}".format(type(SUM)))
         return SUM
-    
+
 
 
     Ltrain = loss_fn_train(Yhat_train, Y)
