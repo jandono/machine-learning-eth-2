@@ -8,6 +8,8 @@ Train an SVM on each of the resulting subcubes, then average their results.
 import data
 import numpy as np
 from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler
+from sklearn.cross_validation import StratifiedKFold
 
 '''
 Loads the given range/type of data.
@@ -31,22 +33,24 @@ def load_all(typ, rng):
 
 '''
 Input: an array of the same shape as returned by load_all, and the labels.
-Output: a list of n_cubes^3 classifiers
+Output: a list of n_cubes^3 tuples of (classifier, transformer)
 '''
 def fit_bunch(X, y):
     predictors = []
     for i in range(len(X)):
-        #print('Fitting classifier ' + str(i))
+        scaler = StandardScaler()
+        Xs = scaler.fit_transform(X[i])
 
         pred = SVC(kernel='linear', probability=True)
-        pred.fit(X[i], y)
+        pred.fit(Xs, y)
 
-        predictors.append(pred)
+        predictors.append((pred, scaler))
 
     return predictors
 
 '''
-Input: an array of the same shape as returned by load_all, and the classifiers
+Input: an array of the same shape as returned by load_all, and the output
+of fit_bunch
 Output: an array of shape (n_predictors, n_samples, 2)
 '''
 def predict_bunch(Z, predictors):
@@ -54,8 +58,9 @@ def predict_bunch(Z, predictors):
 
     for i in range(len(Z)):
         #print('Predicting with classifier ' + str(i))
+        Zs = predictors[i][1].transform(Z[i])
 
-        pred = predictors[i].predict_proba(Z[i])
+        pred = predictors[i][0].predict_proba(Zs)
         predictions.append(pred)
 
     return np.array(predictions)
@@ -72,30 +77,64 @@ def combine_predictions_mean(preds):
 # TODO have a different combination of predictions?
 
 
-# Testing
 
-def validate():
-    X = load_all('train', range(250))
-    y = data.get_targets(range(250))
+'''
+Train a model on data X and class labels y, then use the model to predict
+class labels for Z.
+
+Returns the predicted class labels.
+'''
+def train_and_predict(X, y, Z):
     clas = fit_bunch(X, y)
-
-    Z = load_all('train', range(250, 278))
-    actual = data.get_targets(range(250, 278))
     predicted_indiv = predict_bunch(Z, clas)
     predicted_ensem = combine_predictions_mean(predicted_indiv)
+    return predicted_ensem
 
-    print(data.evaluate(predicted_ensem, actual))
+# Testing
+
+'''
+Trains a model on data X and labels y, predicts the labels for Z, and computes
+the loss with the actual labels.
+
+Returns the loss.
+'''
+def validate(X, y, Z, actual):
+    predicted = train_and_predict(X, y, Z)
+    return data.evaluate(predicted, actual)
+
+'''
+Performs cross-validation on the entire training dataset.
+
+Prints the mean loss.
+'''
+def xval(splits=5):
+    X = load_all('train', range(278))
+    y = data.get_targets(range(278))
+    total_loss = 0
+
+    # Stratified: keep classes somewhat balanced within folds
+
+    # scikit-learn 0.18
+    #kf = StratifiedKFold(n_splits=splits)
+    #for i, (train, test) in enumerate(kf.split(X, y)):
+
+    kf = StratifiedKFold(y, splits)
+    for i, (train, test) in enumerate(kf):
+        loss = validate(X[:,train,:], y[train], X[:,test,:], y[test])
+
+        print('XVal fold ' + str(i) + ' loss: ' + str(loss))
+        total_loss += loss
+
+    print('Mean loss: ' + str(total_loss / splits))
 
 def test():
     X = load_all('train', range(278))
     y = data.get_targets(range(278))
-    clas = fit_bunch(X, y)
-
     Z = load_all('test', range(138))
-    predicted_indiv = predict_bunch(Z, clas)
-    predicted_ensem = combine_predictions_mean(predicted_indiv)
+
+    predictions = train_and_predict(X, y, Z)
     data.print_prediction(predicted_ensem)
 
 if __name__ == '__main__':
-    #validate()
-    test()
+    xval(3)
+    #test()
